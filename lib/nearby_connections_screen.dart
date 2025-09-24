@@ -7,6 +7,8 @@ import 'package:nearby_connections/nearby_connections.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:file_picker/file_picker.dart'; // <— add this
 import 'dart:io'; // <— for File class
+// import 'package:path_provider/path_provider.dart';
+// import 'package:open_file/open_file.dart';
 
 class NearbyConnectionsScreen extends StatefulWidget {
   const NearbyConnectionsScreen({super.key});
@@ -263,10 +265,25 @@ class _NearbyConnectionsScreenState extends State<NearbyConnectionsScreen> {
       // Move it or open it as needed:
       // For example, move to Downloads folder:
       if (tempPath != null) {
-        String newPath =
-            "/storage/emulated/0/Download/received_file_${payload.id}";
-        await File(tempPath).copy(newPath);
-        addLog("✅ File saved to: $newPath");
+        // Ask for storage permission (Android 10+)
+        if (await Permission.manageExternalStorage.request().isGranted ||
+            await Permission.storage.request().isGranted) {
+          // Public Downloads directory
+          Directory downloadsDir = Directory("/storage/emulated/0/Download");
+
+          // Give it a visible name
+          String fileName = "received_file_${payload.id}";
+          String newPath = "${downloadsDir.path}/$fileName";
+
+          // Copy from temp to Downloads
+          File savedFile = await File(tempPath).copy(newPath);
+          addLog("✅ File saved to Downloads: ${savedFile.path}");
+
+          // Optional: open it automatically
+          // await OpenFile.open(savedFile.path);
+        } else {
+          addLog("❌ Storage permission denied, cannot save file");
+        }
       }
     }
   }
@@ -337,42 +354,70 @@ class _NearbyConnectionsScreenState extends State<NearbyConnectionsScreen> {
     }
   }
 
+  // ====== CHANGE 1: Updated AppBar (around line 340) ======
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // ✅ CHANGED: Title and color scheme
       appBar: AppBar(
-        title: const Text('Nearby Connections Demo'),
-        backgroundColor: Colors.blue,
+        title: const Text('P2P Sharing'),
+        backgroundColor: const Color(0xFF2196F3), // Blue color like in image
         foregroundColor: Colors.white,
+        elevation: 0,
       ),
+      // ✅ CHANGED: Background color to match image
+      backgroundColor: const Color(0xFFF5F5F5), // Light gray background
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Device info
+            // ====== CHANGE 2: Updated Device info card (around line 350) ======
+            // ✅ CHANGED: Card styling to match image
             Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              color: Colors.white,
               child: Padding(
-                padding: const EdgeInsets.all(12.0),
+                padding: const EdgeInsets.all(16.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       'Device: $userName',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: Color(0xFF333333),
+                      ),
                     ),
-                    const SizedBox(height: 4),
-                    Text('Status: ${_getStatusText()}'),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Status: ${_getStatusText()}',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Color(0xFF666666),
+                      ),
+                    ),
                     if (connectedEndpointId != null)
-                      Text('Connected to: $connectedEndpointId'),
+                      Text(
+                        'Connected to: $connectedEndpointId',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF666666),
+                        ),
+                      ),
                   ],
                 ),
               ),
             ),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
 
-            // Control buttons
+            // ====== CHANGE 3: Updated Control buttons (around line 380) ======
+            // ✅ CHANGED: Button styling to match blue/white theme
             Row(
               children: [
                 Expanded(
@@ -382,108 +427,253 @@ class _NearbyConnectionsScreenState extends State<NearbyConnectionsScreen> {
                         : startAdvertising,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: isAdvertising
-                          ? Colors.red
-                          : Colors.green,
-                      foregroundColor: Colors.white,
+                          ? const Color(0xFF2196F3)
+                          : Colors.white,
+                      foregroundColor: isAdvertising
+                          ? Colors.white
+                          : const Color(0xFF2196F3),
+                      side: const BorderSide(
+                        color: Color(0xFF2196F3),
+                        width: 1.5,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(
+                          25,
+                        ), // More rounded like image
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      elevation: isAdvertising ? 2 : 0,
                     ),
                     child: Text(
                       isAdvertising ? 'Stop Advertising' : 'Start Advertising',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 12),
                 Expanded(
                   child: ElevatedButton(
                     onPressed: isDiscovering ? stopDiscovery : startDiscovery,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: isDiscovering ? Colors.red : Colors.blue,
-                      foregroundColor: Colors.white,
+                      backgroundColor: isDiscovering
+                          ? const Color(0xFF2196F3)
+                          : Colors.white,
+                      foregroundColor: isDiscovering
+                          ? Colors.white
+                          : const Color(0xFF2196F3),
+                      side: const BorderSide(
+                        color: Color(0xFF2196F3),
+                        width: 1.5,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(25),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      elevation: isDiscovering ? 2 : 0,
                     ),
                     child: Text(
                       isDiscovering ? 'Stop Discovery' : 'Start Discovery',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ),
               ],
             ),
 
+            // ====== CHANGE 4: Updated Disconnect button (around line 430) ======
             if (isConnected) ...[
               const SizedBox(height: 16),
+              // ✅ CHANGED: Disconnect button styling
               ElevatedButton(
                 onPressed: disconnect,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange,
+                  backgroundColor: const Color(
+                    0xFFFF5722,
+                  ), // Orange-red for disconnect
                   foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(25),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  elevation: 2,
                 ),
-                child: const Text('Disconnect'),
+                child: const Text(
+                  'Disconnect',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                ),
               ),
             ],
 
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
 
-            // Message input (only show when connected)
+            // ====== CHANGE 5: Updated Message input section (around line 450) ======
             if (isConnected) ...[
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: messageController,
-                      decoration: const InputDecoration(
-                        hintText: 'Type a message...',
-                        border: OutlineInputBorder(),
-                      ),
-                      onSubmitted: (_) => sendMessage(),
+              // ✅ CHANGED: Message input styling
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  ElevatedButton(
-                    onPressed: sendMessage,
-                    child: const Text('Send'),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: messageController,
+                            decoration: InputDecoration(
+                              hintText: 'Type a message...',
+                              hintStyle: const TextStyle(
+                                color: Color(0xFF999999),
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(20),
+                                borderSide: const BorderSide(
+                                  color: Color(0xFFE0E0E0),
+                                  width: 1,
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(20),
+                                borderSide: const BorderSide(
+                                  color: Color(0xFF2196F3),
+                                  width: 1.5,
+                                ),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
+                            ),
+                            onSubmitted: (_) => sendMessage(),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        ElevatedButton(
+                          onPressed: sendMessage,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF2196F3),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 12,
+                            ),
+                          ),
+                          child: const Text(
+                            'Send',
+                            style: TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    // ✅ CHANGED: Send File button styling
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: sendFile,
+                        icon: const Icon(Icons.attach_file, size: 20),
+                        label: const Text(
+                          'Send File',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: const Color(0xFF2196F3),
+                          side: const BorderSide(
+                            color: Color(0xFF2196F3),
+                            width: 1.5,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(25),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
+
+            // ====== CHANGE 6: Updated Logs section (around line 520) ======
+            // ✅ CHANGED: Logs section styling
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
-
-              ElevatedButton(
-                onPressed: sendFile,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.purple,
-                  foregroundColor: Colors.white,
-                ),
-                child: const Text('Send File'),
-              ),
-              const SizedBox(height: 16),
-            ],
-
-            // Logs section
-            const Text(
-              'Logs:',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-            const SizedBox(height: 8),
-            Expanded(
-              child: Container(
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: ListView.builder(
-                  controller: scrollController,
-                  padding: const EdgeInsets.all(8),
-                  itemCount: logs.length,
-                  itemBuilder: (context, index) {
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 2),
-                      child: Text(
-                        logs[index],
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontFamily: 'monospace',
-                        ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Activity Logs',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: Color(0xFF333333),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    height: 200,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8F9FA),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: const Color(0xFFE0E0E0),
+                        width: 1,
                       ),
-                    );
-                  },
-                ),
+                    ),
+                    child: ListView.builder(
+                      controller: scrollController,
+                      padding: const EdgeInsets.all(12),
+                      itemCount: logs.length,
+                      itemBuilder: (context, index) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 2),
+                          child: Text(
+                            logs[index],
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontFamily: 'monospace',
+                              color: Color(0xFF555555),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
