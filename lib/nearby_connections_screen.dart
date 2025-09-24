@@ -5,6 +5,8 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:nearby_connections/nearby_connections.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:file_picker/file_picker.dart'; // <— add this
+import 'dart:io'; // <— for File class
 
 class NearbyConnectionsScreen extends StatefulWidget {
   const NearbyConnectionsScreen({super.key});
@@ -198,8 +200,15 @@ class _NearbyConnectionsScreenState extends State<NearbyConnectionsScreen> {
     try {
       bool result = await Nearby().acceptConnection(
         endpointId,
-        onPayLoadRecieved:
-            onPayloadReceived, // Note: typo in plugin method name
+        onPayLoadRecieved: onPayloadReceived,
+        // ✅ ADD THIS LINE - Handle transfer updates here:
+        onPayloadTransferUpdate:
+            (String endpointId, PayloadTransferUpdate update) {
+              addLog(
+                "Transfer update: id=${update.id} status=${update.status} "
+                "bytesTransferred=${update.bytesTransferred}/${update.totalBytes}",
+              );
+            },
       );
 
       if (result) {
@@ -242,10 +251,23 @@ class _NearbyConnectionsScreenState extends State<NearbyConnectionsScreen> {
   }
 
   /// Called when payload (message) is received
-  void onPayloadReceived(String endpointId, Payload payload) {
+  void onPayloadReceived(String endpointId, Payload payload) async {
     if (payload.type == PayloadType.BYTES) {
       String message = String.fromCharCodes(payload.bytes!);
       addLog("📨 Received from $endpointId: '$message'");
+    } else if (payload.type == PayloadType.FILE) {
+      // Temporary file location
+      String? tempPath = payload.uri;
+      addLog("📥 File payload received from $endpointId. Temp path: $tempPath");
+
+      // Move it or open it as needed:
+      // For example, move to Downloads folder:
+      if (tempPath != null) {
+        String newPath =
+            "/storage/emulated/0/Download/received_file_${payload.id}";
+        await File(tempPath).copy(newPath);
+        addLog("✅ File saved to: $newPath");
+      }
     }
   }
 
@@ -264,6 +286,28 @@ class _NearbyConnectionsScreenState extends State<NearbyConnectionsScreen> {
       messageController.clear();
     } catch (e) {
       addLog("Error sending message: $e");
+    }
+  }
+
+  /// Send a file (PDF/photo/video) to the connected device
+  Future<void> sendFile() async {
+    if (connectedEndpointId == null) return;
+
+    // Pick a file using file_picker
+    FilePickerResult? result = await FilePicker.platform.pickFiles();
+
+    if (result != null && result.files.single.path != null) {
+      String filePath = result.files.single.path!;
+      addLog("Preparing to send file: $filePath");
+
+      try {
+        await Nearby().sendFilePayload(connectedEndpointId!, filePath);
+        addLog("📤 File payload sent!");
+      } catch (e) {
+        addLog("Error sending file: $e");
+      }
+    } else {
+      addLog("No file selected");
     }
   }
 
@@ -397,6 +441,16 @@ class _NearbyConnectionsScreenState extends State<NearbyConnectionsScreen> {
                     child: const Text('Send'),
                   ),
                 ],
+              ),
+              const SizedBox(height: 16),
+
+              ElevatedButton(
+                onPressed: sendFile,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.purple,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Send File'),
               ),
               const SizedBox(height: 16),
             ],
